@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#050b13">
+<title>J.A.R.V.I.S. AI</title>
+<style>
+:root{--cyan:#00eaff;--bg:#050b13;--panel:#091827}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at top,#10314a,#050b13 65%);color:#d8faff;font-family:Arial,sans-serif;min-height:100vh}
+header{padding:20px;border-bottom:1px solid #00eaff55;display:flex;justify-content:space-between;letter-spacing:2px}
+header strong{color:var(--cyan)}
+.status{color:#62ffb4;font-size:11px}
+main{max-width:760px;margin:auto;padding:22px 15px}
+h1{text-align:center;color:var(--cyan);letter-spacing:5px;font-size:28px}
+.sub{text-align:center;color:#7096a9;font-size:11px;letter-spacing:3px}
+.reactor{width:155px;height:155px;margin:28px auto;border:2px solid var(--cyan);border-radius:50%;display:grid;place-items:center;box-shadow:0 0 28px #00eaff55;animation:pulse 3s infinite}
+.core{width:65px;height:65px;border-radius:50%;background:radial-gradient(circle,white,var(--cyan),#087cff);box-shadow:0 0 35px var(--cyan)}
+@keyframes pulse{50%{box-shadow:0 0 45px #00eaff99}}
+.panel{border:1px solid #00eaff66;background:#071522dd;padding:16px;border-radius:8px}
+.label{font-size:11px;letter-spacing:2px;color:var(--cyan);margin-bottom:12px}
+#chat{height:260px;overflow-y:auto;border-bottom:1px solid #00eaff33;margin-bottom:14px;padding-bottom:10px}
+.msg{padding:11px 12px;margin:8px 0;border-radius:6px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.bot{background:#0c2638;border-left:2px solid var(--cyan)}
+.user{background:#102b42;border-right:2px solid #168bff;text-align:right}
+.controls{display:flex;gap:8px}
+input{min-width:0;flex:1;background:#020b12;color:white;border:1px solid #00eaff66;border-radius:5px;padding:13px;font-size:16px}
+button{background:#052c3a;color:var(--cyan);border:1px solid var(--cyan);border-radius:5px;padding:12px;cursor:pointer;font-weight:bold}
+button:disabled{opacity:.5}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tools button{flex:1}
+#hint{font-size:12px;color:#8bb0c1;margin-top:12px;min-height:18px}
+footer{text-align:center;color:#416779;font-size:10px;letter-spacing:2px;padding:25px}
+</style>
+</head>
+<body>
+<header><strong>J.A.R.V.I.S.</strong><span class="status">● SYSTEM READY</span></header>
+<main>
+<h1>J.A.R.V.I.S.</h1>
+<div class="sub">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
+<div class="reactor"><div class="core"></div></div>
+<section class="panel">
+<div class="label">◈ NEURAL INTERFACE / CHAT</div>
+<div id="chat" aria-live="polite">
+<div class="msg bot">Good day. JARVIS systems are online. How may I assist you?</div>
+</div>
+<form id="form" class="controls">
+<input id="message" placeholder="Ask JARVIS something..." autocomplete="off" required>
+<button id="send" type="submit">SEND</button>
+</form>
+<div class="tools">
+<button id="mic" type="button">🎙 VOICE INPUT</button>
+<button id="speak" type="button">🔊 VOICE ON</button>
+<button id="clear" type="button">CLEAR CHAT</button>
+</div>
+<div id="hint">Awaiting your command.</div>
+</section>
+</main>
+<footer>J.A.R.V.I.S. INTERFACE · PERSONAL AI SYSTEM</footer>
+<script>
+const chat=document.getElementById('chat');
+const form=document.getElementById('form');
+const input=document.getElementById('message');
+const send=document.getElementById('send');
+const hint=document.getElementById('hint');
+let history=[];
+let voiceOn=true;
+
+function addMessage(text,who){
+  const div=document.createElement('div');
+  div.className='msg '+who;
+  div.textContent=text;
+  chat.appendChild(div);
+  chat.scrollTop=chat.scrollHeight;
+  return div;
+}
+
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const message=input.value.trim();
+  if(!message)return;
+  addMessage(message,'user');
+  input.value='';
+  send.disabled=true;
+  hint.textContent='JARVIS is processing...';
+  try{
+    const response=await fetch('/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message,history})
+    });
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||'Request failed');
+    const reply=data.reply||'I have no response at this time.';
+    addMessage(reply,'bot');
+    history.push({role:'user',parts:[{text:message}]});
+    history.push({role:'model',parts:[{text:reply}]});
+    if(voiceOn&&'speechSynthesis'in window){
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(reply));
+    }
+    hint.textContent='Response received.';
+  }catch(err){
+    addMessage('I could not connect to the AI server. Check that the Render service is running and its API key is configured.','bot');
+    hint.textContent='Connection error: '+err.message;
+  }finally{
+    send.disabled=false;
+    input.focus();
+  }
+});
+
+document.getElementById('speak').addEventListener('click',()=>{
+  voiceOn=!voiceOn;
+  document.getElementById('speak').textContent=voiceOn?'🔊 VOICE ON':'🔇 VOICE OFF';
+  if(!voiceOn&&'speechSynthesis'in window)speechSynthesis.cancel();
+});
+
+document.getElementById('clear').addEventListener('click',()=>{
+  chat.replaceChildren();
+  history=[];
+  addMessage('Chat cleared. Systems standing by.','bot');
+  hint.textContent='Awaiting your command.';
+});
+
+document.getElementById('mic').addEventListener('click',()=>{
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition){
+    hint.textContent='Voice input is not supported in this browser. You can type instead.';
+    return;
+  }
+  const recognition=new SpeechRecognition();
+  recognition.lang='en-US';
+  recognition.onstart=()=>hint.textContent='Listening...';
+  recognition.onresult=e=>{
+    input.value=e.results[0][0].transcript;
+    hint.textContent='Voice captured. Tap SEND.';
+  };
+  recognition.onerror=()=>hint.textContent='Microphone unavailable. Check browser permission.';
+  recognition.start();
+});
+</script>
+</body>
+</html>
